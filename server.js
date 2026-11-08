@@ -18,7 +18,40 @@ function fx(r,x,y,kind){r.effects.push({x,y,kind,life:kind==='big'?13:7,id:++r.n
 function fire(r,o,team){if(o.cool>0)return;const isPlayer=team==='player';const sp=isPlayer?9:6;const d=DIR[o.dir]||DIR.up;const double=isPlayer&&o.upgrade>=1;const shots=double?[-9,9]:[0];for(const offset of shots){const sideways=(d[0]!==0?[0,1]:[1,0]);r.bullets.push({id:++r.nextId,x:o.x+d[0]*25+sideways[0]*offset,y:o.y+d[1]*25+sideways[1]*offset,vx:d[0]*sp,vy:d[1]*sp,team,owner:o.id,damage:isPlayer?(o.upgrade>=3?2:1):1,pierce:isPlayer&&o.pierce>0?2:0,dead:false});}o.cool=isPlayer?(o.rapid>0?6:16):o.kind==='boss'?20:o.kind==='sniper'?80:48;}
 function spawn(r){const options=['normal','normal','fast'];if(r.level>=3)options.push('heavy');if(r.level>=4)options.push('sniper');let kind=pick(options);if(r.level%3===0&&r.spawned===r.target-1)kind='boss';const x=[110,640,1170][r.spawned%3];const st=TYPES[kind];r.enemies.push({id:++r.nextId,x,y:55,dir:'down',kind,hp:st.hp,maxHp:st.hp,cool:40,step:0,shield:0});r.spawned++;}
 function damageEnemy(r,e,dmg){e.hp-=dmg;fx(r,e.x,e.y,'hit');if(e.hp<=0&&!e.dead){e.dead=true;r.killed++;r.score+=TYPES[e.kind].score;fx(r,e.x,e.y,'big');if(Math.random()<.3||e.kind==='boss')r.powerups.push({id:++r.nextId,x:e.x,y:e.y,type:pick(['shield','repair','freeze','bomb','upgrade','rapid','pierce','heal'])});}}
-function update(r){if(r.phase!=='playing')return;r.tick++;if(r.freeze>0)r.freeze--;for(const p of r.players){if(!p)continue;if(p.cool>0)p.cool--;if(p.shield>0)p.shield--;if(p.rapid>0)p.rapid--;if(p.pierce>0)p.pierce--;const a=p.input||{};if(p.down)continue;let dx=Number(!!a.right)-Number(!!a.left),dy=Number(!!a.down)-Number(!!a.up);if(dx||dy){if(Math.abs(dx)>=Math.abs(dy)&&dx)p.dir=dx>0?'right':'left';else if(dy)p.dir=dy>0?'down':'up';move(r,p,dx*3.5,dy*3.5);}if(a.fire)fire(r,p,'player');}
+
+// Server-controlled AI teammate: no external API or network service required.
+function botThink(r){
+ const bot=r.players[1],human=r.players[0];
+ if(!bot||!bot.bot||bot.down)return;
+ const input={up:false,down:false,left:false,right:false,fire:false,rescue:false};
+ if(human&&human.down){
+   const dx=human.x-bot.x,dy=human.y-bot.y;
+   if(Math.hypot(dx,dy)<65){input.rescue=true;bot.input=input;return;}
+   if(Math.abs(dx)>22)input[dx>0?'right':'left']=true;
+   else if(Math.abs(dy)>20)input[dy>0?'down':'up']=true;
+   bot.input=input;return;
+ }
+ const enemies=r.enemies.filter(e=>!e.dead);
+ if(!enemies.length){bot.input=input;return;}
+ // Prefer enemies threatening the base, but also defend nearby teammates.
+ const target=enemies.slice().sort((a,b)=>
+  (Math.hypot(a.x-660,a.y-660)*.6+Math.hypot(a.x-bot.x,a.y-bot.y)*.4)-
+  (Math.hypot(b.x-660,b.y-660)*.6+Math.hypot(b.x-bot.x,b.y-bot.y)*.4))[0];
+ const dx=target.x-bot.x,dy=target.y-bot.y;
+ const aligned=Math.abs(dx)<24||Math.abs(dy)<24;
+ if(Math.abs(dx)<24){bot.dir=dy>0?'down':'up';}
+ else if(Math.abs(dy)<24){bot.dir=dx>0?'right':'left';}
+ else if(Math.abs(dx)>Math.abs(dy)){input[dx>0?'right':'left']=true;}
+ else{input[dy>0?'down':'up']=true;}
+ // If movement is blocked, periodically try another approach.
+ if(r.tick%110>=85&&r.tick%110<100){
+   for(const k of ['up','down','left','right'])input[k]=false;
+   input[dx>0?'right':'left']=true;
+ }
+ input.fire=aligned||r.tick%18===0;
+ bot.input=input;
+}
+function update(r){if(r.phase!=='playing')return;r.tick++;botThink(r);if(r.freeze>0)r.freeze--;for(const p of r.players){if(!p)continue;if(p.cool>0)p.cool--;if(p.shield>0)p.shield--;if(p.rapid>0)p.rapid--;if(p.pierce>0)p.pierce--;const a=p.input||{};if(p.down)continue;let dx=Number(!!a.right)-Number(!!a.left),dy=Number(!!a.down)-Number(!!a.up);if(dx||dy){if(Math.abs(dx)>=Math.abs(dy)&&dx)p.dir=dx>0?'right':'left';else if(dy)p.dir=dy>0?'down':'up';move(r,p,dx*3.5,dy*3.5);}if(a.fire)fire(r,p,'player');}
 for(const p of r.players){if(!p||!p.down)continue;const mate=r.players.find(q=>q&&q!==p&&!q.down);if(mate&&Math.hypot(mate.x-p.x,mate.y-p.y)<65&&mate.input&&mate.input.rescue){p.revive++;if(p.revive>=35){p.down=false;p.hp=2;p.shield=140;p.revive=0;fx(r,p.x,p.y,'big');}}else p.revive=Math.max(0,p.revive-2);}
 if(r.spawned<r.target&&r.tick%Math.max(36,66-r.level*2)===0&&r.enemies.length<Math.min(9,4+Math.floor(r.level/2)))spawn(r);
 if(r.freeze===0)for(const e of r.enemies){e.step++;if(e.cool>0)e.cool--;if(e.step%42===0){const base={x:660,y:660},target=Math.random()<.75?base:r.players.find(p=>p&&!p.down)||base;e.dir=Math.abs(target.x-e.x)>Math.abs(target.y-e.y)?(target.x>e.x?'right':'left'):(target.y>e.y?'down':'up');}const speed=TYPES[e.kind].speed;const d=DIR[e.dir];if(solid(r,e.x+d[0]*speed,e.y+d[1]*speed,e.kind==='boss'?23:16))e.dir=pick(Object.keys(DIR));else move(r,e,d[0]*speed,d[1]*speed,e.kind==='boss'?23:16);if(e.cool<=0)fire(r,e,'enemy');if(e.kind==='boss'&&e.step%65===0){e.dir=pick(Object.keys(DIR));}}
@@ -31,8 +64,8 @@ for(const u of r.powerups){for(const p of r.players){if(!p||p.down||Math.hypot(p
 r.powerups=r.powerups.filter(u=>!u.dead);for(const e of r.effects)e.life--;r.effects=r.effects.filter(e=>e.life>0);
 if(r.baseHp<=0||r.players.every(p=>!p||p.down))r.phase='lost';else if(r.spawned>=r.target&&r.enemies.length===0)r.phase=r.level>=10?'complete':'won';}
 function send(ws,msg){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg));}
-function broadcast(r){const state={type:'state',code:r.code,level:r.level,theme:THEMES[r.level-1],score:r.score,baseHp:r.baseHp,phase:r.phase,tiles:r.tiles,players:r.players.map(p=>p?{x:p.x,y:p.y,dir:p.dir,hp:p.hp,shield:p.shield,down:p.down,revive:p.revive,upgrade:p.upgrade,rapid:p.rapid,pierce:p.pierce}:null),enemies:r.enemies.map(({x,y,dir,hp,maxHp,kind,id})=>({x,y,dir,hp,maxHp,kind,id})),bullets:r.bullets.map(({x,y,team,id})=>({x,y,team,id})),powerups:r.powerups,effects:r.effects,killed:r.killed,target:r.target,freeze:r.freeze};for(const p of r.players)if(p)send(p.ws,state);}
+function broadcast(r){const state={type:'state',code:r.code,level:r.level,theme:THEMES[r.level-1],score:r.score,baseHp:r.baseHp,phase:r.phase,tiles:r.tiles,players:r.players.map(p=>p?{x:p.x,y:p.y,dir:p.dir,hp:p.hp,shield:p.shield,down:p.down,revive:p.revive,upgrade:p.upgrade,rapid:p.rapid,pierce:p.pierce}:null),enemies:r.enemies.map(({x,y,dir,hp,maxHp,kind,id})=>({x,y,dir,hp,maxHp,kind,id})),bullets:r.bullets.map(({x,y,team,id})=>({x,y,team,id})),powerups:r.powerups,effects:r.effects,killed:r.killed,target:r.target,freeze:r.freeze};for(const p of r.players)if(p&&p.ws)send(p.ws,state);}
 const server=http.createServer((req,res)=>{const pathname=new URL(req.url,'http://localhost').pathname;const file=pathname==='/'?'index.html':pathname.slice(1);if(!['index.html','client.js'].includes(file)){res.writeHead(404);return res.end('Not found');}fs.readFile(path.join(__dirname,file),(err,data)=>{if(err){res.writeHead(404);return res.end('Not found');}res.writeHead(200,{'Content-Type':file.endsWith('.js')?'application/javascript; charset=utf-8':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(data);});});
-const wss=new WebSocket.Server({server});wss.on('connection',ws=>{let room=null,slot=-1;ws.on('message',raw=>{if(raw.length>4096)return;let m;try{m=JSON.parse(raw);}catch{return;}if(!m||typeof m!=='object')return;if(m.type==='create'){if(room)return;let code;do{code=String(crypto.randomInt(100000,1000000));}while(rooms.has(code));room=roomNew(code);rooms.set(code,room);slot=0;room.players[0]={ws,id:0,input:{}};send(ws,{type:'joined',code,slot});broadcast(room);}else if(m.type==='join'){if(room)return;const r=rooms.get(String(m.code||''));if(!r||r.players[1]||r.phase!=='waiting')return send(ws,{type:'error',message:'roomUnavailable'});room=r;slot=1;r.players[1]={ws,id:1,input:{}};send(ws,{type:'joined',code:r.code,slot});init(r);broadcast(r);}else if(m.type==='input'&&room&&slot>=0&&room.players[slot]){const k=m.keys||{};room.players[slot].input=Object.fromEntries(['up','down','left','right','fire','rescue'].map(key=>[key,k[key]===true]));}else if(m.type==='next'&&room&&slot===0&&room.phase==='won'){room.level++;init(room);broadcast(room);}else if(m.type==='restart'&&room&&slot===0&&room.phase!=='waiting'){room.level=1;room.score=0;init(room);broadcast(room);}});ws.on('close',()=>{if(!room)return;room.players[slot]=null;room.phase='waiting';room.players.forEach(p=>{if(p)send(p.ws,{type:'error',message:'partnerLeft'});});rooms.delete(room.code);});});
+const wss=new WebSocket.Server({server});wss.on('connection',ws=>{let room=null,slot=-1;ws.on('message',raw=>{if(raw.length>4096)return;let m;try{m=JSON.parse(raw);}catch{return;}if(!m||typeof m!=='object')return;if(m.type==='create'){if(room)return;let code;do{code=String(crypto.randomInt(100000,1000000));}while(rooms.has(code));room=roomNew(code);rooms.set(code,room);slot=0;room.players[0]={ws,id:0,input:{}};send(ws,{type:'joined',code,slot});broadcast(room);}else if(m.type==='solo'||m.type==='bot'){if(room)return;let code;do{code=String(crypto.randomInt(100000,1000000));}while(rooms.has(code));room=roomNew(code);rooms.set(code,room);slot=0;room.players[0]={ws,id:0,input:{}};if(m.type==='bot')room.players[1]={ws:null,id:1,bot:true,input:{}};send(ws,{type:'joined',code,slot});init(room);broadcast(room);}else if(m.type==='join'){if(room)return;const r=rooms.get(String(m.code||''));if(!r||r.players[1]||r.phase!=='waiting')return send(ws,{type:'error',message:'roomUnavailable'});room=r;slot=1;r.players[1]={ws,id:1,input:{}};send(ws,{type:'joined',code:r.code,slot});init(r);broadcast(r);}else if(m.type==='input'&&room&&slot>=0&&room.players[slot]){const k=m.keys||{};room.players[slot].input=Object.fromEntries(['up','down','left','right','fire','rescue'].map(key=>[key,k[key]===true]));}else if(m.type==='next'&&room&&slot===0&&room.phase==='won'){room.level++;init(room);broadcast(room);}else if(m.type==='restart'&&room&&slot===0&&room.phase!=='waiting'){room.level=1;room.score=0;init(room);broadcast(room);}});ws.on('close',()=>{if(!room)return;room.players[slot]=null;room.phase='waiting';room.players.forEach(p=>{if(p)send(p.ws,{type:'error',message:'partnerLeft'});});rooms.delete(room.code);});});
 setInterval(()=>{for(const r of rooms.values()){update(r);broadcast(r);}},50);
 server.listen(PORT,'0.0.0.0',()=>console.log('Tank Defense V2 listening on '+PORT));
