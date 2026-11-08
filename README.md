@@ -1,22 +1,43 @@
-# 坦克大战：保卫大本营（双人联网）
+# Tank Defense Online V2 — 保卫大本营
 
-原创俯视角坦克合作游戏。两人通过六位房间号加入同一房间，服务器同步坦克、炮弹、地形、敌人、分数与大本营血量。
+双人在线合作坦克大战，Node.js + ws，服务器权威判定，1280×720 (16:9) 宽屏，10 个关卡。
+
+## 本次新增
+- 10 个主题关卡：城市、森林、沙漠、雪地、湿地、工业区、峡谷、冰原、堡垒、终局。
+- 普通、快速、重甲、狙击敌人；第 3、6、9 关的最后一名敌人为 Boss，血量条。
+- 双发炮弹、快速射击、穿甲弹、伤害升级（升级道具重复拾取可提高等级）。
+- 砖墙两次命中摧毁，钢墙不可破坏，树林允许穿行和穿弹、可遮挡视线的视觉效果，河流不可通行。
+- 随机道具：护盾、基地修复、冻结敌人、清场炸弹、武器升级、速射、穿甲、治疗。
+- 双人倒地救援：队友靠近并按住 E / 救援键约 1.75 秒。部分道具双方共享。
+- 敌对炮弹在服务器同一帧按线段相对运动检测，碰撞时互相抵消。
+- 自动按浏览器首选语言显示：英文、简体中文、繁体中文、日文、法文；右上角可手动切换，选择保存在本机浏览器。
+- Web Audio 合成简易射击、爆炸、碰撞音效（首次操作后激活）。
 
 ## 本地运行
-
-安装 Node.js 18+，在本目录执行：
+安装 Node.js 18+，在包含 `server.js`、`index.html`、`client.js`、`package.json` 的目录执行：
 
 ```bash
 npm install
 npm start
 ```
 
-访问 http://localhost:3000 。
+访问 http://localhost:3000 。两个浏览器标签页可在本机测试房间。
 
-## 免费部署
+## 更新已有 GitHub / Render
+1. 在 GitHub 仓库 `bar2undead/tank-defense` 的根目录上传 ZIP 解压出的 **5 个文件**（不要上传 ZIP 本身，也不要多套一层文件夹）。
+2. 覆盖原有同名文件，Commit changes。
+3. Render 现有 Web Service 保持 Build Command=`npm install`、Start Command=`npm start`、Root Directory 留空。等待最新部署状态 Live。
+4. 所有玩家按 Ctrl+Shift+R 强制刷新，并重新创建房间。旧房间会随部署重启而清空。
 
-1. 在 GitHub **新建仓库**（不要覆盖 Skybound 的仓库），上传 `server.js`、`package.json`、`README.md` 和整个 `public` 文件夹（内含 `index.html`、`client.js`）。
-2. Render 新建 Web Service，连接新仓库；Language: Node；Build Command: `npm install`；Start Command: `npm start`；选择 Free。
-3. 部署显示 Live 后，打开 Render 网址，玩家 A 创建房间，玩家 B 输入房间号加入。
+**注意**：不需要 `public/` 目录。`server.js` 已直接从项目根目录提供 `index.html` 和 `client.js`，避免 Not found。
 
-注意：免费实例休眠会断开房间；房间只存在服务器内存，重启后消失。此版本为可试玩原型，尚未完成真实双浏览器测试。
+## 操作
+- 移动：WASD / 方向键
+- 开炮：Space / J
+- 救援：靠近倒地队友，按住 E（手机按住救援）
+- 房主：下一关、重新开始
+
+## 限制
+- 免费 Render 服务可能休眠，房间在重启时丢失；没有数据库持久化。
+- 本版是简单难度；没有账户或全局排行榜。
+- 服务器负责所有物理碰撞、伤害、道具、Boss 和炮弹抵消。
