@@ -119,4 +119,4 @@ if(m.type==='create'||m.type==='solo'||m.type==='bot'){if(room)return;const name
 }else if(m.type==='restart'&&room&&slot===0&&room.phase!=='waiting'){room.level=1;room.score=0;room.coins=0;room.shop={damage:0,rate:0,speed:0,base:0};room.reviveTokens=0;init(room);broadcast(room);}
 });ws.on('close',()=>{if(!room)return;room.players[slot]=null;if(slot===0){room.players.forEach(p=>{if(p&&p.ws)send(p.ws,{type:'error',message:'partnerLeft'});});rooms.delete(room.code);}else if(room.players.every(p=>!p||p.bot)){rooms.delete(room.code);}else{if(room.phase==='playing'&&room.players.filter(Boolean).every(p=>p.down))room.phase='lost';broadcast(room);}});});
 setInterval(()=>{for(const r of rooms.values()){update(r);broadcast(r);}},50);
-server.listen(PORT,'0.0.0.0',()=>console.log('Tank Defense V2.9 listening on '+PORT));
+server.listen(PORT,'0.0.0.0',()=>console.log('Tank Defense V3.0 listening on '+PORT));
