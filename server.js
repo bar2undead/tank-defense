@@ -4,7 +4,7 @@ const WebSocket=require('ws');
 const PORT=Number(process.env.PORT)||3000, W=1280,H=720,T=40,C=32,R=18,rooms=new Map();
 const DIR={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
 const MAX_PLAYERS=9;
-const JOKES=['Even a potato could aim better than you!','Who taught you to drive, a blind toaster?','Your aim belongs in a rubbish bin!','Nice shot, genius! Did you close your eyes?','My teammates are decorative furniture!','I have seen smarter bricks than you!','You fight like a broken shopping trolley!','That shot was embarrassingly lucky!','You couldn't hit a barn from inside!','I demand a refund on this useless team!'];
+const JOKES=['Even a potato could aim better than you!','Who taught you to drive, a blind toaster?','Your aim belongs in a rubbish bin!','Nice shot, genius! Did you close your eyes?','My teammates are decorative furniture!','I have seen smarter bricks than you!','You fight like a broken shopping trolley!','That shot was embarrassingly lucky!','You cannot hit a barn from inside!','I demand a refund on this useless team!'];
 function cleanName(v){return typeof v==='string'&&/^[A-Za-z]{1,8}$/.test(v.trim())?v.trim():null;}
 function jokeDown(r,p){if(p.down)return;p.down=true;p.hp=0;p.revive=0;p.joke=pick(JOKES);p.jokeUntil=r.tick+100;fx(r,p.x,p.y,'big');}
 function uniqueName(r,wanted,slot){const taken=new Set(r.players.map((p,i)=>i!==slot&&p?p.name.toLowerCase():null));let name=wanted||('Player'+(slot+1));if(!taken.has(name.toLowerCase()))return name;for(let i=1;i<10;i++){const candidate=(name.slice(0,7)+i).slice(0,8);if(!taken.has(candidate.toLowerCase()))return candidate;}return 'P'+slot;}
